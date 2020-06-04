@@ -1,0 +1,105 @@
+<?php
+
+namespace App\Repository;
+
+use App\Entity\Text;
+use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\Common\Persistence\ManagerRegistry;
+use Symfony\Bridge\Doctrine\RegistryInterface;
+
+/**
+ * @method Text|null find($id, $lockMode = null, $lockVersion = null)
+ * @method Text|null findOneBy(array $criteria, array $orderBy = null)
+ * @method Text[]    findAll()
+ * @method Text[]    findBy(array $criteria, array $orderBy = null, $limit = null, $offset = null)
+ */
+class TextRepository extends ServiceEntityRepository
+{
+    public function __construct(ManagerRegistry $registry)
+    {
+        parent::__construct($registry, Text::class);
+    }
+    public function addText($text){
+        try{
+            $em = $this->getEntityManager();
+            $em->persist($text);
+            $em->flush();
+            return true;
+        }
+        catch (\Exception $exception){
+            return false;
+        }
+    }
+    public function updateText($text){
+        try{
+            $em = $this->getEntityManager();
+            $em->flush($text);
+            return true;
+        }
+        catch (\Exception $exception){
+            return false;
+        }
+    }
+    public function removeText($text){
+        try {
+            $em = $this->getEntityManager();
+            $em->remove($text);
+            $em->flush();
+            return true;
+        }
+        catch (\Exception $exception){
+            return false;
+        }
+    }
+    public function getTexts($skip, $limit){
+        $qb = $this->createQueryBuilder('t');
+        $qb->setFirstResult($skip)
+            ->setMaxResults($limit);
+        return $qb->getQuery()->getResult();
+    }
+    public function getUserTexts($user,$skip, $limit){
+        $qb = $this->createQueryBuilder('t');
+        $qb->where('t.user = :user')
+            ->setFirstResult($skip)
+            ->setMaxResults($limit)
+            ->setParameter(':user', $user->getId());
+        return $qb->getQuery()->getResult();
+    }
+    public function countTexts(){
+        $qb = $this->createQueryBuilder('t');
+        $qb->select('count(t.id)');
+        return $qb->getQuery()->getSingleScalarResult();
+    }
+
+
+
+    // /**
+    //  * @return Text[] Returns an array of Text objects
+    //  */
+    /*
+    public function findByExampleField($value)
+    {
+        return $this->createQueryBuilder('t')
+            ->andWhere('t.exampleField = :val')
+            ->setParameter('val', $value)
+            ->orderBy('t.id', 'ASC')
+            ->setMaxResults(10)
+            ->getQuery()
+            ->getResult()
+        ;
+    }
+    */
+
+    /*
+    public function findOneBySomeField($value): ?Text
+    {
+        return $this->createQueryBuilder('t')
+            ->andWhere('t.exampleField = :val')
+            ->setParameter('val', $value)
+            ->getQuery()
+            ->getOneOrNullResult()
+        ;
+    }
+    */
+}
+

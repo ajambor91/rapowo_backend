@@ -1,0 +1,19 @@
+<?php
+namespace App\Service;
+
+use App\Entity\Image;
+use App\Entity\Text;
+
+class TextMaker{
+    public function createText($data, $user, $image = null){
+        $text = new Text();
+        $text->setTitle($data['title'])
+            ->setUser($user)
+            ->setContent($data['content']);
+        if(isset($image) && $image instanceof Image){
+            $text->setImage($image);
+        }
+        return $text;
+    }
+}
+

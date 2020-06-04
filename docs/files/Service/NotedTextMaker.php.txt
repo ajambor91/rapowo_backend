@@ -1,0 +1,14 @@
+<?php
+namespace App\Service;
+use App\Entity\NotedText;
+
+class NotedTextMaker{
+    public function makeNoted($user, $type, $text){
+        $noted = new NotedText();
+        $noted->setUser($user)
+                ->setType($type)
+                ->setText($text);
+        return $noted;
+    }
+}
+

@@ -1,0 +1,211 @@
+<?php
+namespace App\Controller\SecurityController;
+use App\Controller\BaseController;
+use App\Entity\User;
+use App\Repository\UserRepository;
+use App\Service\UserMaker;
+use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\Routing\Annotation\Route;
+
+
+/**
+ * @Route("/user")
+ * Class SecurityController
+ * @package App\Controller\SecurityController
+ */
+class SecurityController extends BaseController{
+
+    /**
+     * @Route("/register", methods={"POST"}, name="register")
+     * @param UserMaker $userMaker
+     * @param UserRepository $userRepository
+     * @param \Swift_Mailer $mailer
+     * @param object $request params by request
+     * @uses \Symfony\Component\HttpFoundation\Request
+     * @json  string $email (optional) required
+     * @json string $nick required
+     * @json string $password required
+     * @json string $city
+     * @json boolean $sex
+     * @json string $name
+     * @json string $birthdate
+     * @return JsonResponse
+     *
+     */
+    public function registerUser(UserMaker $userMaker, UserRepository $userRepository, \Swift_Mailer $mailer){
+        $data = $this->getJSONContent();
+        $requiredData = ['email','nick','password'];
+        if(!$this->checkRequiredIndex($data,$requiredData)){
+            return new JsonResponse(['status'=>false,'data'=>'no required data'],400);
+        }
+        $user = $userMaker->createUser($data,null);
+        $checker = $userRepository->addUser($user);
+        if($checker ===  true){
+            $this->sendMessage($user, $mailer);
+            return new JsonResponse(['status'=>true],200);
+        }
+        else{
+            return new JsonResponse(['status'=>false,'data'=>'user exists'],409);
+        }
+
+    }
+
+    /**
+     * @Route("/reset-password/{hash}", methods={"PUT"}, name="reset_password")
+     * @param UserRepository $userRepository
+     * @param string $hash
+     * @return JsonResponse
+     * @uses \Symfony\Component\HttpFoundation\Request
+     * @json string $password
+     */
+    public function resetPassword(UserRepository $userRepository, string $hash){
+        $data = $this->getJSONContent();
+        $requiredData = ['password'];
+        if($this->checkRequiredIndex($data,$requiredData)){
+            return new JsonResponse(['status'=>false,'data'=>'no required data'],400);
+        }
+        $user = $userRepository->findOneBy(['hash'=>$hash]);
+        if(!$user){
+            return new JsonResponse(['status'=>true,'data'=>'User doesn\'t exsist'],404);
+        }
+        $password = password_hash($data['password'], PASSWORD_DEFAULT);
+        $userRepository->upgradePassword($password);
+        $checker = $userRepository->updateUser($user);
+        if($checker){
+            return new JsonResponse(['status'=>true],200);
+        }
+        else{
+            return new JsonResponse(['status'=>false],500);
+        }
+    }
+
+    /**
+     * @Route("/edit-profile/{id}" , methods={"PUT"} ,name="edit_profile")
+     * @param int $id
+     * @param User $user
+     * @param UserRepository $userRepository
+     * @uses \Symfony\Component\HttpFoundation\Request
+     * @json string $email
+     * @json string $nick
+     * @json string $password
+     * @json string $city
+     * @json boolean $sex
+     * @json string $name
+     * @json string $birthdate
+     * @json JsonResponse
+     */
+    public function editProfile(int $id, User $user, UserRepository $userRepository){
+        if(!$user){
+            return new JsonResponse(['status'=>false],404);
+        }
+        $data = $this->getJSONContent();
+        if(isset($data['city'])){
+            $user->setCity($data['city']);
+        }
+        if(isset($data['sex'])){
+            $user->setSex($data['sex']);
+        }
+        if(isset($data['name'])){
+            $user->setName('name');
+        }
+        if(isset($data['birthdate'])){
+            $user->setBirthdate(new \DateTime($data['birthdate']));
+        }
+        if(isset($data['password'])){
+            $password = password_hash($data['password'], PASSWORD_DEFAULT);
+            $userRepository->upgradePassword($password);
+        }
+        $checker = $userRepository->updateUser($user);
+        if($checker){
+            return new JsonResponse(['status'=>true],200);
+        }
+        else{
+            return new JsonResponse(['status'=>false],500);
+        }
+    }
+
+    /**
+     * @param User $user
+     * @param \Swift_Mailer $mailer
+     */
+    public function sendMessage(User $user, \Swift_Mailer $mailer){
+        $msg = new \Swift_Message('Aktywacja konta');
+        $msg->setFrom($this->getParameter('sender'))
+            ->setTo($user->getEmail())
+            ->setBody($this->render('mail/activation.html.twig',[
+                'user'=>$user->getName(),
+                'hash'=>$user->getHash()
+            ]),'text/html');
+        $mailer->send($msg);
+    }
+
+    /**
+     * @Route("/activate/{hash}", methods={"PUT"}, name="activate")
+     * @param UserRepository $userRepository
+     * @param string $hash
+     * @return JsonResponse
+     */
+    public function activate(UserRepository $userRepository, string $hash){
+        $user = $userRepository->findOneBy(['hash'=>$hash]);
+        if(!$user){
+            return new JsonResponse(['status'=>false,'data'=>'User doesn\'t exist'],404);
+        }
+        $user->setIsActive(true);
+        $checker = $userRepository->updateUser($user);
+        if($checker){
+            return new JsonResponse(['status'=>true],500);
+        }
+        else{
+            return new JsonResponse(['status'=>false],200);
+        }
+    }
+
+    /**
+     * @Route("/reset-password-msg", name="reset_password", methods={"GET"})
+     * @param UserRepository $userRepository
+     * @param \Swift_Mailer $mailer
+     * @uses \Symfony\Component\HttpFoundation\Request
+     * @json string $email
+     * @return JsonResponse
+     */
+    public function resetPasswordMsg(UserRepository $userRepository, \Swift_Mailer $mailer){
+        $data = $this->getJSONContent();
+        $user = $userRepository->findOneBy(['email'=>$data['email']]);
+        if(!$user){
+            return new JsonResponse(['status'=>false,'data'=>'user doesn\'t exist'],403);
+        }
+        $msg = new \Swift_Message('Resetowanie hasła');
+        $msg->setFrom($this->getParameter('sender'))
+            ->setTo($user->getEmail())
+            ->setBody($this->render('mail/reset-password.html.twig',[
+                'user'=> $user->getName(),
+                'hash'=>$user->getHash()
+            ]),'text/html');
+        $mailer->send($msg);
+        return new JsonResponse(['status'=>true],200);
+
+
+    }
+
+    /**
+     * @Route("/check-exist/{type}", name="check_exist", methods={"POST"})
+     * @param string $type
+     * @param UserRepository $userRepository
+     * @return JsonResponse
+     */
+    public function checkIsExists(string $type,UserRepository $userRepository){
+        $data = $this->getJSONContent();
+        $requiredData = [$type];
+        if(!$this->checkRequiredIndex($data,$requiredData)){
+            return new JsonResponse(['status'=>false,'no required data'], 400);
+        }
+        $checker = $userRepository->findOneBy([$type=>$data[$type]]);
+        if($checker){
+            return new JsonResponse(['status'=>false,'data'=>'user exists'],409);
+        }else{
+            return new JsonResponse(['status'=>true],200);
+        }
+    }
+
+}
+

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>{% block title %}Welcome!{% endblock %}</title>
+    </head>
+    <body style="background-color: #011315; color: #fff">
+        <header>
+            <img style="width: 100%" src="{{ cid }}">
+        </header>
+        <article>
+            <div style="width: 80%; margin: auto;">
+                <h1 style="color: #fff; text-align: center; font-size: 2.5em; font-weight: bold; margin-bottom: 40px; margin-top: 40px;">Witaj {{ receiver_nick }}</h1>
+                <a style="color: #fff; text-decoration: none;" href="http://localhost:4200/song/{{ slug }}">
+                <div style="display: flex; border: #fff 1px solid; border-radius: 35px;  background-color: #181e1f;">
+                    <img style=" z-index: 2; width: 70px; height: 70px; border-radius: 50%; border: #c7141a 2px solid; vertical-align: middle" src="{{ avatar }}">
+                    <p style="padding: 10px 10px 10px 10px; font-size: 15px;">{% block content %}{% endblock %}</p>
+                </div
+                </a>
+            </div>
+        </article>
+        <footer style="text-align: center; margin-top: 40px; padding-bottom: 40px;">
+            <p>Pozdrawiamy!<br> Zespół Rappers.pl</p>
+        </footer>
+    </body>
+</html>

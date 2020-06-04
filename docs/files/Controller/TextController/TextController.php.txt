@@ -1,0 +1,208 @@
+<?php
+namespace App\Controller\TextController;
+use App\Controller\BaseController;
+use App\Entity\Text;
+use App\Entity\User;
+use App\Repository\NotedTextRepository;
+use App\Repository\ObservatorRepository;
+use App\Repository\TextRepository;
+use App\Service\NotedTextMaker;
+use App\Service\TextMaker;
+use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
+
+/**
+ * @Route("/text")
+ */
+
+class TextController extends BaseController{
+    /**
+     * @Route("/private/add-text", methods={"POST"}, name="add_user")
+     */
+    public function addText(TextMaker $textMaker, TextRepository $textRepository, Request $request){
+        $data = $this->getJSONContent();
+        $user = $this->getCurrentUser($request);
+        $requiredData = ['title','content'];
+        if(!$this->checkRequiredIndex($data,$requiredData)){
+            return new JsonResponse(['status'=>false,'data'=>'no required data'],400);
+        }
+        if(!$user){
+            return new JsonResponse(['status'=>false,'data'=>'user not found'],401);
+        }
+        $text = $textMaker->createText($data, $user);
+        $checker = $textRepository->addText($text);
+        if($checker){
+            return new JsonResponse(['status'=>true, 'data'=>'text was added'],200);
+        }
+        else{
+            return new JsonResponse(['status'=>false, 'data'=>'cannot add text'],500);
+        }
+    }
+
+    /**
+     * @Route("/private/update-text/{id}" , methods={"PUT"} ,name="update_text")
+     */
+    public function updateText(int $id, Text $text, Request $request, TextRepository $textRepository){
+        if(!$text){
+            return new JsonResponse(['status'=>false,'data'=>'text not found'],404);
+        }
+        $data = $this->getJSONContent();
+        $user = $this->getCurrentUser($request);
+        if(!$user && $user !=  $text->getUser()){
+            return new JsonResponse(['status'=>true,'data'=>'permission denied'],403);
+        }
+
+        $text->setContent($data['content']);
+
+        $checker = $textRepository->updateText($text);
+        if($checker){
+            return new JsonResponse(['status'=>true, 'data'=>'text was succesfully updated'],200);
+        }else{
+            return new JsonResponse(['status'=>false, 'data'=>'cannot update text'],500);
+        }
+
+    }
+    /**
+     * @Route("/private/delete-text/{id}", name="delete_text", methods={"DELETE"})
+     */
+    public function deleteText(int $id, Text $text, Request $request, TextRepository $textRepository){
+        if(!$text){
+            return new JsonResponse(['status'=>true,'data'=>'text was not found'],404);
+        }
+        $user= $this->getCurrentUser();
+        if(!user && $user != $text->getUser()){
+            return new JsonResponse(['status'=>false,'data'=>'permission denied'],401);
+        }
+        $checker = $textRepository->removeText($text);
+        if($checker){
+            return new JsonResponse(['status'=>true],200);
+        }
+        else{
+            return new JsonResponse(['status'=>false,'data'=>'cannot delete text'],500);
+        }
+    }
+    /**
+     * @Route("/get-texts/{page}", methods={"GET"}, name="get_texts")
+     */
+    public function getTexts(TokenInterface $token,int $page = 1, TextRepository $textRepository, NotedTextRepository $notedTextRepository, Request $request, ObservatorRepository $observatorRepository){
+        $user = $this->getCurrentUser($request);
+        $textsOnPage = 20;
+        $skip = ($page -1) * 20;
+        $texts = $textRepository->getTexts($skip,$textsOnPage);
+        $data = [];
+        $i = 0;
+
+        $data['current_page'] = $page;
+        $data['count_pages'] = ceil($textRepository->countTexts() / 20);
+        foreach ($texts as $text){
+            $data[$i]['id'] = $text->getId();
+            $data[$i]['title'] = $text->getTitle();
+            $data[$i]['content'] = $text->getContent();
+            $data[$i]['note'] = $text->getNote();
+            $data[$i]['created_at'] = date_format($text->getCreatedAt(),'d.m.Y');
+            $data[$i]['updated_at'] = date_format($text->getUpdatedAt(),'d.m.Y');
+            if($user){
+                foreach ($notedTextRepository->getMainNotedTextByUser($user, $text) as $note) {
+                    $data[$i]['note_type'] = $note->getType();
+                }
+                $checkObservator = $observatorRepository->checkObservator($text->getUser(),$user);
+                if(!empty($checkObservator)){
+                    $data[$i]['observator'] = true;
+                }
+
+
+            }
+            $data[$i]['user']['id'] = $text->getUser()->getId();
+            $data[$i]['user']['name'] = $text->getUser()->getName();
+            $data[$i]['user']['sex'] = $text->getUser()->getSex();
+            $data[$i]['user']['city'] = $text->getUser()->getCity();
+            $data[$i]['user']['created_at'] = date_format($text->getUser()->getCreatedAt(),'d.m.Y');
+            $i++;
+        }
+        return new JsonResponse(['status'=>true,'data'=>$data],200);
+
+    }
+    /**
+     * @Route("/private/like-text/{id}/{type}", methods={"PUT"}, name="like_text")
+     */
+    public function likeText(string $type, int $id, Text $text, TextRepository $textRepository, Request $request, NotedTextRepository $notedTextRepository){
+        $text->setNote($type == 'like '? $text->getNote()+1:$text->getNote()-1);
+        $user = $this->getCurrentUser($request);
+        if(!$user){
+            return new JsonResponse(['status'=>false, 'data'=>'permission denied'],401);
+        }
+        if(!$text){
+            return new JsonResponse(['status'=>false,'data'=>'text was not found'],404);
+        }
+        $noted = $notedTextRepository->getNotedTextByUser($user,$text,$type == 'like' ? true:false);
+        $notedTextMaker = new NotedTextMaker();
+
+        if(empty($noted)){
+            $noted = $notedTextMaker->makeNoted($user,$type == 'like' ? true:false,$text);
+            $text->setNote($type == 'like' ? $text->getNote()+1 : $text->getNote()+1 );
+
+            $notedTextRepository->addNote($noted);
+        }
+        else{
+            $text->setNote($type == 'like' ? $text->getNote()-1 : $text->getNote()+1);
+            foreach ($noted as $note){
+                $notedTextRepository->removeNote($note);
+            }
+        }
+        $checker = $textRepository->updateText($text);
+
+        if($checker){
+            return new JsonResponse(['status'=>true],200);
+        }
+        else{
+            return new JsonResponse(['status'=>false,'data'=>'cannot like text'],500);
+        }
+    }
+
+    /**
+     * @Route("/get-user-texts/{id}/{page}", methods={"GET"} , name="get_user_texts")
+     */
+    public function getTextsByUser(int $id, User $author, int $page = 1, TextRepository $textRepository, NotedTextRepository $notedTextRepository, Request $request, ObservatorRepository $observatorRepository){
+        if(!$author){
+            return new JsonResponse(['status'=>false,'data'=>'user was not found'],404);
+        }
+        $user = $this->getCurrentUser($request);
+        $textsOnPage = 20;
+        $skip = ($page -1) * $textsOnPage;
+        $texts = $textRepository->getUserTexts($author,$skip,$textsOnPage);
+        $data = [];
+        $i = 0;
+
+        $data['current_page'] = $page;
+        $data['count_pages'] = ceil($textRepository->countTexts() / 20);
+        foreach ($texts as $text){
+            $data[$i]['id'] = $text->getId();
+            $data[$i]['title'] = $text->getTitle();
+            $data[$i]['content'] = $text->getContent();
+            $data[$i]['note'] = $text->getNote();
+            $data[$i]['created_at'] = date_format($text->getCreatedAt(),'d.m.Y');
+            $data[$i]['updated_at'] = date_format($text->getUpdatedAt(),'d.m.Y');
+            if($user){
+                foreach ($notedTextRepository->getMainNotedTextByUser($user, $text) as $note) {
+                    $data[$i]['note_type'] = $note->getType();
+                }
+                $checkObservator = $observatorRepository->checkObservator($text->getUser(),$user);
+                if(!empty($checkObservator)){
+                    $data[$i]['observator'] = true;
+                }
+            }
+            $data[$i]['user']['id'] = $text->getUser()->getId();
+            $data[$i]['user']['name'] = $text->getUser()->getName();
+            $data[$i]['user']['sex'] = $text->getUser()->getSex();
+            $data[$i]['user']['city'] = $text->getUser()->getCity();
+            $data[$i]['user']['created_at'] = date_format($text->getUser()->getCreatedAt(),'d.m.Y');
+            $i++;
+        }
+        return new JsonResponse(['status'=>true,'data'=>$data],200);
+
+    }
+
+}
+

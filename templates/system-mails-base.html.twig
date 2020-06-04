@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Welcome!{% endblock %}</title>
+</head>
+<body style="background-color: #011315; color: #fff">
+<header>
+    <img style="width: 100%" src="{{ cid }}">
+</header>
+<article>
+    <div style="width: 80%; margin: auto;">
+        <h1 style="color: #fff; text-align: center; font-size: 3em; font-weight: bold; margin-bottom: 40px; margin-top: 40px;">Witaj {{ receiver_nick }}</h1>
+        <div style="font-size: 15px">
+            {% block body %}{% endblock %}
+        </div>
+    </div>
+</article>
+<footer style="text-align: center; margin-top: 40px; padding-bottom: 40px;">
+    <p>Pozdrawiamy!<br> Zespół Rappers.pl</p>
+</footer>
+</body>
+</html>

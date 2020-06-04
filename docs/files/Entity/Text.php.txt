@@ -1,0 +1,238 @@
+<?php
+
+namespace App\Entity;
+
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
+use Doctrine\ORM\Mapping as ORM;
+
+/**
+ * @ORM\Entity(repositoryClass="App\Repository\TextRepository")
+ * @ORM\HasLifecycleCallbacks()
+ */
+class Text
+{
+    /**
+     * @ORM\Id()
+     * @ORM\GeneratedValue()
+     * @ORM\Column(type="integer")
+     */
+    private $id;
+
+    /**
+     * @ORM\Column(type="string", length=255)
+     */
+    private $content;
+
+    /**
+     * @ORM\Column(type="integer")
+     */
+    private $note;
+
+    /**
+     * @ORM\OneToOne(targetEntity="App\Entity\Image", cascade={"persist", "remove"})
+     */
+    private $image;
+
+    /**
+     * @ORM\Column(type="datetime")
+     */
+    private $createdAt;
+
+    /**
+     * @ORM\Column(type="datetime")
+     */
+    private $updatedAt;
+
+    /**
+     * @ORM\ManyToOne(targetEntity="App\Entity\User", inversedBy="texts")
+     */
+    private $user;
+
+    /**
+     * @ORM\OneToMany(targetEntity="App\Entity\Comment", mappedBy="text")
+     */
+    private $comments;
+
+    /**
+     * @ORM\OneToMany(targetEntity="App\Entity\NotedText", mappedBy="text")
+     */
+    private $notedTexts;
+
+    /**
+     * @ORM\Column(type="string", length=255)
+     */
+    private $title;
+
+    public function __construct()
+    {
+        $this->comments = new ArrayCollection();
+        $this->notedTexts = new ArrayCollection();
+    }
+
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+
+    public function getContent(): ?string
+    {
+        return $this->content;
+    }
+
+    public function setContent(string $content): self
+    {
+        $this->content = $content;
+
+        return $this;
+    }
+
+    public function getNote(): ?int
+    {
+        return $this->note;
+    }
+
+    public function setNote(int $note): self
+    {
+        $this->note = $note;
+
+        return $this;
+    }
+
+    public function getImage(): ?Image
+    {
+        return $this->image;
+    }
+
+    public function setImage(?Image $image): self
+    {
+        $this->image = $image;
+
+        return $this;
+    }
+
+    public function getCreatedAt(): ?\DateTimeInterface
+    {
+        return $this->createdAt;
+    }
+
+    public function setCreatedAt(\DateTimeInterface $createdAt): self
+    {
+        $this->createdAt = $createdAt;
+
+        return $this;
+    }
+
+    public function getUpdatedAt(): ?\DateTimeInterface
+    {
+        return $this->updatedAt;
+    }
+
+    public function setUpdatedAt(\DateTimeInterface $updatedAt): self
+    {
+        $this->updatedAt = $updatedAt;
+
+        return $this;
+    }
+
+    public function getUser(): ?User
+    {
+        return $this->user;
+    }
+
+    public function setUser(?User $user): self
+    {
+        $this->user = $user;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection|Comment[]
+     */
+    public function getComments(): Collection
+    {
+        return $this->comments;
+    }
+
+    public function addComment(Comment $comment): self
+    {
+        if (!$this->comments->contains($comment)) {
+            $this->comments[] = $comment;
+            $comment->setText($this);
+        }
+
+        return $this;
+    }
+
+    public function removeComment(Comment $comment): self
+    {
+        if ($this->comments->contains($comment)) {
+            $this->comments->removeElement($comment);
+            // set the owning side to null (unless already changed)
+            if ($comment->getText() === $this) {
+                $comment->setText(null);
+            }
+        }
+
+        return $this;
+    }
+    /**
+     * @ORM\PrePersist()
+     */
+    public function prePersists(){
+        $this->createdAt = new \DateTime();
+        $this->updatedAt = new \DateTime();
+        $this->note = 0;
+    }
+    /**
+     * @ORM\PreUpdate()
+     */
+    public function preUpdate(){
+        $this->updatedAt = new \DateTime();
+    }
+
+    /**
+     * @return Collection|NotedText[]
+     */
+    public function getNotedTexts(): Collection
+    {
+        return $this->notedTexts;
+    }
+
+    public function addNotedText(NotedText $notedText): self
+    {
+        if (!$this->notedTexts->contains($notedText)) {
+            $this->notedTexts[] = $notedText;
+            $notedText->setText($this);
+        }
+
+        return $this;
+    }
+
+    public function removeNotedText(NotedText $notedText): self
+    {
+        if ($this->notedTexts->contains($notedText)) {
+            $this->notedTexts->removeElement($notedText);
+            // set the owning side to null (unless already changed)
+            if ($notedText->getText() === $this) {
+                $notedText->setText(null);
+            }
+        }
+
+        return $this;
+    }
+
+    public function getTitle(): ?string
+    {
+        return $this->title;
+    }
+
+    public function setTitle(string $title): self
+    {
+        $this->title = $title;
+
+        return $this;
+    }
+}
+

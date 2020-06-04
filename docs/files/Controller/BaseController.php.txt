@@ -1,0 +1,66 @@
+<?php
+namespace App\Controller;
+
+use App\Entity\User;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Lexik\Bundle\JWTAuthenticationBundle\Encoder\JWTEncoderInterface;
+use Symfony\Component\HttpFoundation\Request;
+
+class BaseController extends AbstractController {
+    /**
+     * @var JWTEncoderInterface
+     */
+    protected $jwtAuth;
+    /**
+     * ApiController constructor.
+     * @param JWTEncoderInterface $jwtAuth
+     */
+    public function __construct(JWTEncoderInterface $jwtAuth)
+    {
+        $this->jwtAuth = $jwtAuth;
+    }
+
+    /**
+     * @uses \Symfony\Component\HttpFoundation\Request
+     * @return mixed
+     */
+    protected function getJSONContent(){
+        $request = Request::createFromGlobals();
+        return  json_decode($request->getContent(), true);
+    }
+
+    /**
+     * @param Request $request
+     * @return object|null
+     */
+    protected function getCurrentUser(Request $request)
+    {
+        try {
+            $token = $request->headers->get('Authorization');
+            $token = str_replace('Bearer ', '', $token);
+            $decodedToken = $this->jwtAuth->decode($token);
+            $userFromDatabase = $this->getDoctrine()->getRepository(User::class)
+                ->findOneBy(['email' => $decodedToken['username']]);
+            return $userFromDatabase;
+
+        }
+        catch (\Exception $e){
+            return null;
+        }
+    }
+
+    /**
+     * @param $data array
+     * @param $index array
+     * @return bool
+     */
+    protected function checkRequiredIndex(array $data, array $index){
+        foreach ($index as $ind){
+            if(!array_key_exists($ind,$data) || $data[$ind] == null){
+                return false;
+            }
+        }
+        return true;
+    }
+}
+
